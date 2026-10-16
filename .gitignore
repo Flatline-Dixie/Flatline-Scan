@@ -1,5 +1,8 @@
 *.o
+/flatline-scan
 /nmap_c
 /port_parser_test
+/port_spec_test
+/PortSpec_stub.h
 .idea/
 .DS_Store

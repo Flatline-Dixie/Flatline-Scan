@@ -4,31 +4,50 @@
 
 #include <assert.h>
 
-int main(void) {
+static void expect_valid(const char *spec, const uint16_t *expected, int expected_count) {
     uint16_t *ports = NULL;
     int count = 0;
 
-    assert(parse_port_spec("80", &ports, &count) == 0);
-    assert(count == 1 && ports[0] == 80);
+    assert(parse_port_spec(spec, &ports, &count) == 0);
+    assert(count == expected_count);
+    for (int i = 0; i < count; i++) {
+        assert(ports[i] == expected[i]);
+    }
     free(ports);
+}
 
-    assert(parse_port_spec("22-80", &ports, &count) == 0);
-    assert(count == 59 && ports[0] == 22 && ports[count - 1] == 80);
-    free(ports);
+static void expect_invalid(const char *spec) {
+    uint16_t *ports = NULL;
+    int count = 0;
 
-    assert(parse_port_spec("22,80,443,3306", &ports, &count) == 0);
-    assert(count == 4 && ports[0] == 22 && ports[count - 1] == 3306);
-    free(ports);
+    assert(parse_port_spec(spec, &ports, &count) == -1);
+    assert(ports == NULL);
+    assert(count == 0);
+}
 
-    assert(parse_port_spec("443,22", &ports, &count) == 0);
-    assert(count == 2 && ports[0] == 22 && ports[count - 1] == 443);
-    free(ports);
+int main(void) {
+    static const uint16_t one[] = {80};
+    static const uint16_t range[] = {22, 23, 24};
+    static const uint16_t list[] = {22, 80, 443, 3306};
+    static const uint16_t deduplicated[] = {22, 23, 80};
+    static const uint16_t spaced[] = {22, 23, 24, 80};
+    uint16_t *all_ports = NULL;
+    int all_ports_count = 0;
 
-    assert(parse_port_spec("80,22,80,22-25", &ports, &count) == 0);
-    assert(count == 5 && ports[0] == 22 && ports[count - 1] == 80);
-    free(ports);
+    expect_valid("80", one, 1);
+    expect_valid("22-24", range, 3);
+    expect_valid("22,80,443,3306", list, 4);
+    expect_valid("80,22,80,22-23", deduplicated, 3);
+    expect_valid(" 22 - 24 , 80 ", spaced, 4);
+    assert(parse_port_spec("1-65535", &all_ports, &all_ports_count) == 0);
+    assert(all_ports_count == 65535 && all_ports[0] == 1 && all_ports[65534] == 65535);
+    free(all_ports);
 
-    assert(parse_port_spec("0-10", &ports, &count) == -1);
+    expect_invalid("0-10");
+    expect_invalid("65536");
+    expect_invalid("24-22");
+    expect_invalid("80,,443");
+    expect_invalid("");
 
     puts("port parser checks passed");
     return 0;

@@ -3,18 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <ctype.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
 #pragma comment(lib, "ws2_32.lib")
-#else
-#include <ctype.h>
-#endif
-
-#ifdef _WIN32
-#define STRTOK_R(str, delim, saveptr) strtok_s((str), (delim), (saveptr))
-#else
-#define STRTOK_R(str, delim, saveptr) strtok_r((str), (delim), (saveptr))
 #endif
 
 void print_usage(const char *program_name) {
@@ -36,134 +29,113 @@ void print_usage(const char *program_name) {
     printf("  %s localhost -p 80,443,443 -q -o results.txt\n", program_name);
 }
 
-static void sort_ports(uint16_t *ports, int count) {
-    for (int i = 1; i < count; i++) {
-        uint16_t current = ports[i];
-        int j = i - 1;
-        while (j >= 0 && ports[j] > current) {
-            ports[j + 1] = ports[j];
-            j--;
-        }
-        ports[j + 1] = current;
-    }
-}
+static int parse_port_number(const char *start, const char *end, uint16_t *port_out) {
+    unsigned int value = 0;
 
-static int port_in_list(const uint16_t *ports, int count, uint16_t port) {
-    for (int i = 0; i < count; i++) {
-        if (ports[i] == port) {
-            return 1;
-        }
+    while (start < end && isspace((unsigned char)*start)) {
+        start++;
     }
+    while (end > start && isspace((unsigned char)end[-1])) {
+        end--;
+    }
+    if (start == end) {
+        return -1;
+    }
+
+    for (const char *cursor = start; cursor < end; cursor++) {
+        if (!isdigit((unsigned char)*cursor)) {
+            return -1;
+        }
+        unsigned int digit = (unsigned int)(*cursor - '0');
+        if (value > (65535 - digit) / 10) {
+            return -1;
+        }
+        value = value * 10 + digit;
+    }
+    if (value == 0) {
+        return -1;
+    }
+
+    *port_out = (uint16_t)value;
     return 0;
 }
 
 int parse_port_spec(const char *spec, uint16_t **ports_out, int *count_out) {
-    char buffer[256];
-    char *saveptr = NULL;
-    char *token;
-    uint16_t *ports = NULL;
+    unsigned char seen[65536] = {0};
+    uint16_t *ports;
     int count = 0;
-    int capacity = 8;
+    const char *token_start;
 
     if (!spec || !ports_out || !count_out) {
         return -1;
     }
 
-    strncpy(buffer, spec, sizeof(buffer) - 1);
-    buffer[sizeof(buffer) - 1] = '\0';
-
-    ports = malloc((size_t)capacity * sizeof(uint16_t));
+    *ports_out = NULL;
+    *count_out = 0;
+    ports = malloc(65535 * sizeof(uint16_t));
     if (!ports) {
         fprintf(stderr, "Error: Memory allocation failed\n");
         return -1;
     }
 
-    for (token = STRTOK_R(buffer, ",", &saveptr); token != NULL; token = STRTOK_R(NULL, ",", &saveptr)) {
-        char *dash = strchr(token, '-');
-        char *endptr = NULL;
-        long start_val;
-        long end_val;
-        uint16_t start_port;
-        uint16_t end_port;
-
-        while (*token == ' ' || *token == '\t') {
-            token++;
-        }
-
-        if (*token == '\0') {
-            continue;
-        }
-
-        if (dash) {
-            *dash = '\0';
-            start_val = strtol(token, &endptr, 10);
-            if (*token == '\0' || *endptr != '\0') {
-                fprintf(stderr, "Error: Invalid port range '%s'\n", token);
+    token_start = spec;
+    for (const char *cursor = spec;; cursor++) {
+        if (*cursor == ',' || *cursor == '\0') {
+            const char *token_end = cursor;
+            const char *dash = NULL;
+            uint16_t start_port;
+            uint16_t end_port;
+            while (token_start < token_end && isspace((unsigned char)*token_start)) {
+                token_start++;
+            }
+            while (token_end > token_start && isspace((unsigned char)token_end[-1])) {
+                token_end--;
+            }
+            if (token_start == token_end) {
+                fprintf(stderr, "Error: Invalid port specification '%s'\n", spec);
                 free(ports);
                 return -1;
             }
 
-            end_val = strtol(dash + 1, &endptr, 10);
-            if (*endptr != '\0') {
-                fprintf(stderr, "Error: Invalid port range '%s'\n", token);
-                free(ports);
-                return -1;
-            }
-
-            start_port = (uint16_t)start_val;
-            end_port = (uint16_t)end_val;
-
-            if (start_port < 1 || end_port > 65535 || start_port > end_port) {
-                fprintf(stderr, "Error: Invalid port range '%s'\n", token);
-                free(ports);
-                return -1;
-            }
-
-            for (uint16_t port = start_port; port <= end_port; port++) {
-                if (count >= capacity) {
-                    int new_capacity = capacity * 2;
-                    uint16_t *resized = realloc(ports, (size_t)new_capacity * sizeof(uint16_t));
-                    if (!resized) {
-                        fprintf(stderr, "Error: Memory allocation failed\n");
+            for (const char *part = token_start; part < token_end; part++) {
+                if (*part == '-') {
+                    if (dash) {
+                        fprintf(stderr, "Error: Invalid port specification '%s'\n", spec);
                         free(ports);
                         return -1;
                     }
-                    ports = resized;
-                    capacity = new_capacity;
-                }
-                if (!port_in_list(ports, count, port)) {
-                    ports[count++] = port;
+                    dash = part;
                 }
             }
-        } else {
-            start_val = strtol(token, &endptr, 10);
-            if (*token == '\0' || *endptr != '\0') {
-                fprintf(stderr, "Error: Invalid port '%s'\n", token);
-                free(ports);
-                return -1;
-            }
 
-            start_port = (uint16_t)start_val;
-            if (start_port < 1 || start_port > 65535) {
-                fprintf(stderr, "Error: Invalid port '%s'\n", token);
-                free(ports);
-                return -1;
-            }
-
-            if (count >= capacity) {
-                int new_capacity = capacity * 2;
-                uint16_t *resized = realloc(ports, (size_t)new_capacity * sizeof(uint16_t));
-                if (!resized) {
-                    fprintf(stderr, "Error: Memory allocation failed\n");
+            if (dash) {
+                if (parse_port_number(token_start, dash, &start_port) < 0 ||
+                    parse_port_number(dash + 1, token_end, &end_port) < 0 ||
+                    start_port > end_port) {
+                    fprintf(stderr, "Error: Invalid port specification '%s'\n", spec);
                     free(ports);
                     return -1;
                 }
-                ports = resized;
-                capacity = new_capacity;
+            } else {
+                if (parse_port_number(token_start, token_end, &start_port) < 0) {
+                    fprintf(stderr, "Error: Invalid port specification '%s'\n", spec);
+                    free(ports);
+                    return -1;
+                }
+                end_port = start_port;
             }
-            if (!port_in_list(ports, count, start_port)) {
-                ports[count++] = start_port;
+
+            for (unsigned int port = start_port; port <= end_port; port++) {
+                if (!seen[port]) {
+                    seen[port] = 1;
+                    ports[count++] = (uint16_t)port;
+                }
             }
+
+            if (*cursor == '\0') {
+                break;
+            }
+            token_start = cursor + 1;
         }
     }
 
@@ -173,7 +145,11 @@ int parse_port_spec(const char *spec, uint16_t **ports_out, int *count_out) {
         return -1;
     }
 
-    sort_ports(ports, count);
+    for (int port = 1, index = 0; port <= 65535; port++) {
+        if (seen[port]) {
+            ports[index++] = (uint16_t)port;
+        }
+    }
     *ports_out = ports;
     *count_out = count;
     return 0;

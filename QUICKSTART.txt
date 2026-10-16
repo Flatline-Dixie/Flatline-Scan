@@ -1,12 +1,13 @@
 ╔════════════════════════════════════════════════════════════════╗
-║         CUSTOM NMAP PORT SCANNER - QUICK START GUIDE           ║
+║          FLATLINE SCAN - QUICK START GUIDE                     ║
 ╚════════════════════════════════════════════════════════════════╝
 
 📦 FILES INCLUDED:
-├── nmap_c (binary - ready to run on macOS/Linux)
+├── flatline-scan (binary - ready to run on macOS/Linux)
 ├── main.c (CLI interface source code)
 ├── scanner.c (core scanning engine - 263 lines)
 ├── scanner.h (header file)
+├── PortSpec.hs (optional Haskell port-spec parser)
 ├── Makefile (build configuration)
 └── README.md (full documentation)
 
@@ -17,11 +18,11 @@
 1. EXTRACT THE ARCHIVE:
 
    On macOS/Linux:
-   $ tar -xzf nmap_c.tar.gz
-   $ cd nmap_c
+   $ tar -xzf flatline-scan.tar.gz
+   $ cd flatline-scan
 
    On Windows (using 7-Zip, WinRAR, or built-in):
-   Extract nmap_c.zip to a folder
+   Extract flatline-scan.zip to a folder
 
 2. BUILD FROM SOURCE (if needed):
 
@@ -30,37 +31,37 @@
    $ make
 
    Windows (MinGW):
-   $ gcc -o nmap_c.exe main.c scanner.c -lws2_32
+   $ gcc -o flatline-scan.exe main.c scanner.c -lws2_32
 
    Windows (MSVC):
-   $ cl main.c scanner.c ws2_32.lib
+   $ cl /Fe:flatline-scan.exe main.c scanner.c ws2_32.lib
 
 3. RUN THE SCANNER:
 
    macOS/Linux:
-   $ ./nmap_c [target] [options]
+   $ ./flatline-scan [target] [options]
 
    Windows:
-   > nmap_c.exe [target] [options]
+   > flatline-scan.exe [target] [options]
 
 ═══════════════════════════════════════════════════════════════════
 
 📋 USAGE EXAMPLES:
 
 Basic scan (ports 1-1000):
-$ ./nmap_c google.com
+$ ./flatline-scan google.com
 
 Full port scan (1-65535):
-$ ./nmap_c 192.168.1.1 -p 1-65535
+$ ./flatline-scan 192.168.1.1 -p 1-65535
 
 Custom threads and timeout:
-$ ./nmap_c example.com -p 1-10000 -t 128 -T 5
+$ ./flatline-scan example.com -p 1-10000 -t 128 -T 5
 
 Scan localhost:
-$ ./nmap_c localhost -p 1-1024
+$ ./flatline-scan localhost -p 1-1024
 
 Show help:
-$ ./nmap_c -h
+$ ./flatline-scan -h
 
 ═══════════════════════════════════════════════════════════════════
 
@@ -77,7 +78,7 @@ $ ./nmap_c -h
 
 📊 EXAMPLE OUTPUT:
 
-$ ./nmap_c localhost -p 1-1024 -t 32
+$ ./flatline-scan localhost -p 1-1024 -t 32
 
 Starting scan of localhost
 Scanning ports 1-1024 with 32 threads (timeout: 3s)
@@ -100,16 +101,16 @@ Total scanned:  1024
 🎯 PERFORMANCE TIPS:
 
 • For FAST SCANNING: Increase threads
-  $ ./nmap_c target -t 256
+  $ ./flatline-scan target -t 256
 
 • For SLOW NETWORKS: Increase timeout
-  $ ./nmap_c target -T 10
+  $ ./flatline-scan target -T 10
 
 • For QUICK TESTS: Reduce port range
-  $ ./nmap_c target -p 1-1024
+  $ ./flatline-scan target -p 1-1024
 
 • For FULL SCAN: Use all options
-  $ ./nmap_c target -p 1-65535 -t 256 -T 5
+  $ ./flatline-scan target -p 1-65535 -t 256 -T 5
 
 ═══════════════════════════════════════════════════════════════════
 
@@ -119,14 +120,14 @@ Q: "Connection refused" on many ports
 A: This is normal! It means ports are closed.
 
 Q: Scan is too slow
-A: Try: ./nmap_c target -t 256 -T 1
+A: Try: ./flatline-scan target -t 256 -T 1
 
 Q: Port shows "FILTERED"
 A: Usually means a firewall is blocking the port
 
 Q: Build fails on Windows
 A: Make sure you have MinGW or MSVC installed
-   Or use the pre-compiled nmap_c binary on macOS/Linux
+   Or use the pre-compiled flatline-scan binary on macOS/Linux
 
 ═══════════════════════════════════════════════════════════════════
 
